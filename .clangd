@@ -1,0 +1,9 @@
+CompileFlags:
+  Add:
+    - -I.
+    - -I..
+    - -Ikernel
+    - -I../kernel
+    - -Iuser
+    - -I../user
+    - -std=gnu11
