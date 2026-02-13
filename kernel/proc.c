@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "syscall.h"
 
 struct cpu cpus[NCPU];
 
@@ -291,6 +292,12 @@ fork(void)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+
+  // copy traced state
+  for (int i = SYS_fork; i <= SYS_trace; i++)
+  {
+    np->traced_sys_num[i] = p->traced_sys_num[i];
+  }
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;

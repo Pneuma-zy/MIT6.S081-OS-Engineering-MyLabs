@@ -95,3 +95,24 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_trace(void)
+{
+  struct proc *p = myproc();
+  int mask;
+  //从寄存器a0读传入的掩码
+  if(argint(0, &mask) < 0)
+    return -1;
+  int sys_num = 0;
+  while (mask)
+  {
+    if (mask & 1)
+    {
+      p->traced_sys_num[sys_num] = 1;
+    }
+    sys_num++;
+    mask >>= 1;
+  }
+  return 0;
+}
