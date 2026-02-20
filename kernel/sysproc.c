@@ -76,14 +76,38 @@ sys_sleep(void)
 }
 
 
-#ifdef LAB_PGTBL
 int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  uint64 va = 0; //起始va
+  int pagen;  //待检查页面数
+  uint64 addr; //指向缓冲区的用户地址
+  uint64 buf = 0;
+  struct proc* p = myproc();
+  if (argaddr(0, &va) < 0)
+    return -1;
+  if (argint(1, &pagen) < 0)
+    return -1;
+  if (argaddr(2, &addr) < 0)
+    return -1;
+  if (pagen > 64)
+    return -1;
+  
+  uint64 va0 = PGROUNDDOWN(va);
+  for (int i = 0; i < pagen; i++)
+  {
+    pte_t *pte = walk(p->pagetable, va0, 0);
+    if (*pte & PTE_A) {
+      buf |= (1L << i);
+      *pte ^= PTE_A;
+    }
+    va0 += PGSIZE;
+  }
+  
+  copyout(p->pagetable, addr, (char *)&buf, sizeof(buf));
   return 0;
 }
-#endif
 
 uint64
 sys_kill(void)
