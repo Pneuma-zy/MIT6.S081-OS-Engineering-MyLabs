@@ -4,6 +4,7 @@
 # grade script (e.g., grade-lab-util).
 
 -include conf/lab.mk
+-include local.conf
 
 K=kernel
 U=user
@@ -83,6 +84,7 @@ AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
+ASFLAGS += $(ASFLAGS_EXTRA)
 
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb
 
@@ -92,6 +94,7 @@ XCFLAGS += -DSOL_$(LABUPPER) -DLAB_$(LABUPPER)
 endif
 
 CFLAGS += $(XCFLAGS)
+CFLAGS += $(CFLAGS_EXTRA)
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -111,6 +114,7 @@ CFLAGS += -fno-pie -nopie
 endif
 
 LDFLAGS = -z max-page-size=4096
+LDFLAGS += $(LDFLAGS_EXTRA)
 
 $K/kernel: $(OBJS) $K/kernel.ld $U/initcode
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
