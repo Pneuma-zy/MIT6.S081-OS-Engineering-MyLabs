@@ -70,6 +70,7 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+  backtrace();
   return 0;
 }
 
@@ -94,4 +95,35 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_sigreturn(void)
+{
+  struct proc *p = myproc();
+  p->alarmret = 1;
+  memmove(p->trapframe, p->alarmtrapframe, sizeof(*p->trapframe));
+  return 0;
+}
+
+uint64
+sys_sigalarm(void)
+{
+  int ticks = 0;
+  uint64 handler = 0;
+  if (argint(0, &ticks) < 0)
+    return -1;
+  if (argaddr(1, &handler) < 0)
+    return -1;
+  struct proc *p = myproc();
+  if (ticks == 0) { //参数读到(0, 0)，代表终止alarm
+    p->ticks = 0;
+    p->leftticks = 0;
+    p->handler = 0;
+  } else if (ticks && p->leftticks == 0) { //既读到了ticks，进程的剩余ticks又为0，说明是一个新的alarm调用
+    p->ticks = ticks;
+    p->leftticks = ticks;
+    p->handler = handler;
+  }
+  return 0;
 }

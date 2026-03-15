@@ -4,6 +4,7 @@
 # grade script (e.g., grade-lab-util).
 
 -include conf/lab.mk
+-include local.conf
 
 K=kernel
 U=user
@@ -94,11 +95,13 @@ XCFLAGS += -DSOL_$(LABUPPER) -DLAB_$(LABUPPER)
 endif
 
 CFLAGS += $(XCFLAGS)
+CFLAGS += $(CFLAGS_EXTRA)
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+ASFLAGS += $(ASFLAGS_EXTRA)
 
 ifeq ($(LAB),net)
 CFLAGS += -DNET_TESTS_PORT=$(SERVERPORT)
@@ -117,7 +120,7 @@ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
 
-LDFLAGS = -z max-page-size=4096
+LDFLAGS = -z max-page-size=4096 $(LDFLAGS_EXTRA)
 
 $K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld $U/initcode
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) $(OBJS_KCSAN)
@@ -172,6 +175,7 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 .PRECIOUS: %.o
 
 UPROGS=\
+	$U/_alarmtest\
 	$U/_cat\
 	$U/_echo\
 	$U/_forktest\
