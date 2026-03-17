@@ -81,16 +81,16 @@ usertrap(void)
     }
     uint flags = PTE_FLAGS(*pte);  //获得触发缺页的pte的flag
     if (flags & PTE_COW) { //如果该pte需要进行cow，则进行下述操作
-      void *kmem = kalloc();
+      char *kmem = kalloc();
       if (kmem == 0) {
-        kfree((void *)kmem);
+        kfree(kmem);
         p->killed = 1;
       } else {
-        memmove(kmem, (void *)PTE2PA(*pte), PGSIZE);  //复制原页面
+        memmove(kmem, (char *)PTE2PA(*pte), PGSIZE);  //复制原页面
         flags |= PTE_W;  //fork时取消了PTE_W，此时cow后应该加上
         flags &= ~PTE_COW; //取消PTE_COW标识
         if (mappages(p->pagetable, va, PGSIZE, (uint64)kmem, flags) != 0) {
-          kfree((void *)kmem);
+          kfree(kmem);
           p->killed = 1;
         }
       }
