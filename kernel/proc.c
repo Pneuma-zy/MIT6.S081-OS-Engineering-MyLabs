@@ -275,7 +275,7 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-
+ 
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;

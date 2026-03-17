@@ -67,6 +67,36 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 13 || r_scause() == 15) {
+    //Page Fault
+    if (r_stval() > p->sz || r_stval() < p->trapframe->sp) {
+      p->killed = 1;
+      exit(-1);
+    }
+    struct proc *p = myproc();
+    uint64 va = PGROUNDDOWN(r_stval());
+    pte_t *pte;
+    if ((pte = walk(p->pagetable, va, 0)) == 0) {
+      panic("cow: no pte");
+    }
+    uint flags = PTE_FLAGS(*pte);  //获得触发缺页的pte的flag
+    if (flags & PTE_COW) { //如果该pte需要进行cow，则进行下述操作
+      void *kmem = kalloc();
+      if (kmem == 0) {
+        kfree((void *)kmem);
+        p->killed = 1;
+      } else {
+        memmove(kmem, (void *)PTE2PA(*pte), PGSIZE);  //复制原页面
+        flags |= PTE_W;  //fork时取消了PTE_W，此时cow后应该加上
+        flags &= ~PTE_COW; //取消PTE_COW标识
+        if (mappages(p->pagetable, va, PGSIZE, (uint64)kmem, flags) != 0) {
+          kfree((void *)kmem);
+          p->killed = 1;
+        }
+      }
+    } else {
+      panic("page fault without cow");
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

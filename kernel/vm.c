@@ -312,11 +312,23 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
+    /*
     if((mem = kalloc()) == 0)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
+      goto err;
+    }
+    */
+    
+    //清除父子进程的PTE_W
+    *pte &= ~PTE_W;  
+    flags &= ~PTE_W;
+    //为父子进程pte加上COW标识
+    *pte |= PTE_COW;
+    flags |= PTE_COW;
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0) { //COW: 直接将新页表映射到父进程页表对应的物理地址
       goto err;
     }
   }
