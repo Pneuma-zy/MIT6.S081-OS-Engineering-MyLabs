@@ -15,6 +15,8 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+extern int cowref[];  //kalloc.c
+
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -150,7 +152,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V) {
       if (*pte & PTE_COW && !(perm & PTE_COW)) {
-        //如果原来的pte有COW标识但是perm没有，说明是在pagefault时对其进行cow操作
+        //如果原来的pte有COW标识但是perm没有，说明是在pagefault时对其进行cow操作,不会触发panic
       } else {
         panic("mappages: remap");
       }
@@ -308,7 +310,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  //char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -326,6 +327,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0) { //COW: 直接将新页表映射到父进程页表对应的物理地址
       goto err;
     }
+    cowref[(uint64)pa / PGSIZE]++;  //copy后对应物理页引用数应该加1
   }
   return 0;
 
@@ -354,12 +356,33 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+  pte_t *pte;
 
+  va0 = PGROUNDDOWN(dstva);
+  if ((pte = walk(pagetable, va0, 0)) == 0) {
+    return -1;
+  }
+  uint flags = PTE_FLAGS(*pte);
+  pa0 = PTE2PA(*pte);
+  if (flags & PTE_COW) {
+    char *kmem = kalloc();
+    if (kmem == 0) {
+      panic("out of memory\n");
+    } else {
+      memmove(kmem, (char *)pa0, PGSIZE);  //复制原页面
+      flags |= PTE_W;  //fork时取消了PTE_W，此时cow后应该加上
+      flags &= ~PTE_COW; //取消PTE_COW标识
+      if (mappages(pagetable, va0, PGSIZE, (uint64)kmem, flags) != 0) {
+        kfree(kmem);
+        return -1;
+      }
+      *pte |= PTE_W;
+      *pte &= ~PTE_COW;
+      kfree((char *)pa0);  //维护pa的cowref，若减为0则直接free
+    }
+  }
   while(len > 0){
-    va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;

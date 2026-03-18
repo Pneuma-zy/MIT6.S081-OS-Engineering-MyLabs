@@ -14,6 +14,7 @@ void freerange(void *pa_start, void *pa_end);
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
+int cowref[(PHYSTOP - KERNBASE) / PGSIZE]; //用于维护cow中每个物理页的引用数，下标为(pa / PGSIZE)
 struct run {
   struct run *next;
 };
@@ -51,6 +52,14 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  if (cowref[(uint64)pa / PGSIZE] == 0) {
+    //该页面未分配就被kfree，说明是在freerange，则不参与cowref相关代码
+  } else {
+    cowref[(uint64)pa / PGSIZE]--;
+    if (cowref[(uint64)pa / PGSIZE])  //如果该页面还有引用数，则不释放
+      return;
+  }
+
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -76,7 +85,9 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r) {
     memset((char*)r, 5, PGSIZE); // fill with junk
+    cowref[(uint64)r / PGSIZE] = 1; //kalloc创建物理页时，将其对应的ref设为1
+  }
   return (void*)r;
 }

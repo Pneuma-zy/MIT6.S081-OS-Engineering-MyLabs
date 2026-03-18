@@ -11,6 +11,8 @@ uint ticks;
 
 extern char trampoline[], uservec[], userret[];
 
+extern int cowref[];  //kalloc.c
+
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
@@ -69,30 +71,28 @@ usertrap(void)
     // ok
   } else if(r_scause() == 13 || r_scause() == 15) {
     //Page Fault
-    if (r_stval() > p->sz || r_stval() < p->trapframe->sp) {
-      p->killed = 1;
-      exit(-1);
-    }
-    struct proc *p = myproc();
     uint64 va = PGROUNDDOWN(r_stval());
     pte_t *pte;
     if ((pte = walk(p->pagetable, va, 0)) == 0) {
       panic("cow: no pte");
     }
+    char *pa = (char *)PTE2PA(*pte);
     uint flags = PTE_FLAGS(*pte);  //获得触发缺页的pte的flag
     if (flags & PTE_COW) { //如果该pte需要进行cow，则进行下述操作
       char *kmem = kalloc();
       if (kmem == 0) {
-        kfree(kmem);
-        p->killed = 1;
+        panic("out of memory\n");
       } else {
-        memmove(kmem, (char *)PTE2PA(*pte), PGSIZE);  //复制原页面
+        memmove(kmem, pa, PGSIZE);  //复制原页面
         flags |= PTE_W;  //fork时取消了PTE_W，此时cow后应该加上
         flags &= ~PTE_COW; //取消PTE_COW标识
         if (mappages(p->pagetable, va, PGSIZE, (uint64)kmem, flags) != 0) {
           kfree(kmem);
           p->killed = 1;
         }
+        *pte |= PTE_W;
+        *pte &= ~PTE_COW;
+        kfree(pa);  //维护pa的cowref，若减为0则直接free
       }
     } else {
       panic("page fault without cow");
